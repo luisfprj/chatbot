@@ -1,59 +1,57 @@
-# Instruções Gerais do Projeto — starter-kit
+# Instruções Gerais do Projeto — Chatbot WhatsApp Atestados
 
 ## Contexto do Projeto
 
-Este é um **starter-kit** monolítico modular para projetos locais. Roda com Docker, sem dependências externas em runtime. A stack é:
+Este é um **chatbot WhatsApp** para coleta de atestados médicos. Substitui um formulário manual por uma conversa guiada no WhatsApp. Sem interface web — toda interação via WhatsApp Business API (Meta Cloud API).
 
-- **Backend:** Java 21 + Spring Boot 3.5.x + Gradle + Flyway + PostgreSQL
-- **Frontend:** React 18 + Vite + TypeScript + Zustand + MUI + React Hook Form + Zod
-- **Infra:** Docker Compose + Nginx (produção) + PostgreSQL 16
+- **Backend:** Node.js 20 + TypeScript + Express + Prisma + PostgreSQL
+- **Integração:** Meta Cloud API (WhatsApp Business) via webhooks
+- **Infra:** Docker Compose + PostgreSQL 16
 
 ## Documentação Obrigatória
 
 Antes de gerar código, consulte os documentos do projeto:
 
-- [Arquitetura](../documentos/arquitetura.md) — modelo de dados, contratos REST, estrutura de pacotes
+- [Arquitetura](../documentos/arquitetura.md) — modelo de dados, fluxo da conversa, integração WhatsApp, máquina de estados
 - [Regras de Desenvolvimento](../regras/regras-de-desenvolvimento.md) — padrões de código, segurança, nomenclatura
 - [Decisões Compartilhadas](../documentos/decisoes-compartilhadas.md) — decisões transversais adotadas
-- [Infraestrutura](../documentos/infraestrutura.md) — Docker, Nginx, profiles, portas
+- [Infraestrutura](../documentos/infraestrutura.md) — Docker, portas, variáveis de ambiente
 - [Plano de Desenvolvimento](../documentos/plano-de-desenvolvimento.md) — fases, tarefas e status
 
 ## Convenções Críticas
 
-- **Timezone:** `America/Sao_Paulo` como fuso operacional. Persistir com `TIMESTAMPTZ`. Backend usa `Instant`. Nunca depender de `ZoneId.systemDefault()`.
-- **Login por e-mail:** normalizar para lowercase antes de persistir ou consultar.
-- **Sessão híbrida:** access token curto em memória + refresh token em cookie HttpOnly com rotação.
-- **Backend é fonte de verdade de autorização.** Frontend apenas organiza navegação.
-- **Schema controlado por Flyway.** Hibernate com `ddl-auto: validate`.
-- **Entidades relevantes** devem ter `createdAt`, `updatedAt` e `version` (`@Version`).
-- **Identificador padrão:** `BIGSERIAL`. UUID é decisão consciente por projeto.
+- **Timezone:** `America/Sao_Paulo` como fuso operacional. Persistir com `TIMESTAMPTZ`. Nunca depender do timezone do SO.
+- **Autorização por número de telefone:** tabela `authorized_numbers` com role `USER` / `ADMIN`.
+- **Webhook seguro:** verificar `X-Hub-Signature-256` em todo POST recebido.
+- **Schema controlado por Prisma Migrations.** Nunca alterar banco manualmente.
+- **Validação com Zod:** toda entrada do usuário validada antes de processar.
+- **Identificador padrão:** `BIGSERIAL`.
+- **E-mail normalizado:** lowercase antes de persistir.
 
 ## Arquitetura de Camadas (Backend)
 
 ```
-Controller → Service → Repository → Entity
+Webhook Handler → Service → Prisma (Repository) → Validators (Zod)
 ```
 
-- Controller: HTTP e validação de entrada. Sem lógica de negócio.
-- Service: regras de negócio, `@Transactional` em escrita, conversão Entity→DTO.
-- Repository: interface JpaRepository, queries parametrizadas, sem concatenação SQL.
-- Entity: sem Lombok `@Data`. Usar `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor`, `@AllArgsConstructor`.
+- Handler: recebe webhook, roteia e delega. Sem lógica de negócio.
+- Service: regras de negócio, orquestração da conversa, acesso a dados via Prisma.
+- Validator: schemas Zod puros, sem dependência de banco.
 
 ## Estrutura de Pastas
 
-- Backend: `/api/src/main/java/com/starterkit/` — pacotes: config, controller, dto/request, dto/response, entity, enums, exception, filter, repository, service, util
-- Frontend: `/frontend/src/` — pastas: assets, components/common, components/layout, layouts, pages, routes, services, stores, types, utils
+- Backend: `/api/src/` — pastas: config, handlers, services, validators, types, utils
+- Prisma: `/api/prisma/` — schema.prisma, migrations/, seed.ts
 - Documentos: `/documentos/`
 - Regras: `/regras/`
 
 ## Segurança (Resumo)
 
-- SQL: nunca concatenar strings. Usar query methods ou JPQL parametrizado.
-- XSS: nunca usar `dangerouslySetInnerHTML` sem sanitização.
-- Senhas: BCrypt, nunca logar, nunca retornar em DTO.
-- JWT secret via variável de ambiente. Access token curto. Refresh com rotação.
-- CORS explícito com `allowCredentials=true`.
-- Paginação: `size` máximo 50, campos de ordenação whitelistados.
+- SQL: nunca concatenar strings. Usar Prisma Client (parametrizado).
+- Webhook: verificar assinatura `X-Hub-Signature-256` com `WHATSAPP_APP_SECRET`.
+- Tokens/secrets: variáveis de ambiente (`.env`), nunca no código, nunca logados.
+- Autorização: apenas números cadastrados com `active = true` interagem.
+- Admin: comandos como `/exportar` restritos a role `ADMIN`.
 
 ## Git
 

@@ -1,9 +1,9 @@
-# Plano de Desenvolvimento — starter-kit
+# Plano de Desenvolvimento — Chatbot WhatsApp Atestados
 
-> **Projeto:** starter-kit
-> **Data de criação:** 07/03/2026
-> **Última atualização:** 08/03/2026
-> **Status geral:** Fase 0 — Planejamento revisado
+> **Projeto:** chatbot-atestado
+> **Data de criação:** 13/03/2026
+> **Última atualização:** 13/03/2026
+> **Status geral:** Fase 0 — Planejamento concluído
 
 ---
 
@@ -11,12 +11,12 @@
 
 | Documento | Descrição |
 | --------- | --------- |
-| [arquitetura.md](arquitetura.md) | Arquitetura do sistema, modelo de dados, contratos da API, especificação de telas |
-| [infraestrutura.md](infraestrutura.md) | Docker, Nginx, profiles Spring, portas, comandos úteis |
-| [decisoes-compartilhadas.md](decisoes-compartilhadas.md) | Decisões transversais reaproveitadas do projeto de referência |
+| [arquitetura.md](arquitetura.md) | Arquitetura do sistema, modelo de dados, fluxo da conversa, integração WhatsApp |
+| [infraestrutura.md](infraestrutura.md) | Docker, portas, variáveis de ambiente, comandos úteis |
+| [decisoes-compartilhadas.md](decisoes-compartilhadas.md) | Decisões transversais do projeto |
 | [regras-de-desenvolvimento.md](../regras/regras-de-desenvolvimento.md) | Padrões de código, segurança, nomenclatura, checklist |
-| [projeto.txt](../projeto.txt) | Decisões e definições originais do projeto |
-| [.github/](../.github/) | Instruções e prompts para o agente Copilot (instructions, prompts) |
+| [projeto.txt](../projeto.txt) | Definições e decisões originais do projeto |
+| [.github/](../.github/) | Instruções e prompts para o agente Copilot |
 
 ---
 
@@ -32,109 +32,77 @@
 
 ## 1. Visão Geral
 
-O **starter-kit** é um projeto base completo, pronto para ser replicado como ponto de partida para novos projetos. Roda 100% local, sem dependências externas em runtime. Todas as dependências são resolvidas no build.
+O **chatbot-atestado** é um chatbot WhatsApp para coleta de atestados médicos. Substitui um formulário manual por uma conversa guiada no WhatsApp, persiste os dados em PostgreSQL e permite exportação para Excel por administradores.
 
 ### Princípios
 
-- **Local-first:** frontend, backend e banco operam na rede local, sem depender da internet em runtime.
-- **Zero internet em runtime:** nenhum CDN, fonte externa ou API de terceiros.
-- **Replicável:** clonar, renomear e começar um novo projeto.
-- **Simples e direto:** evitar over-engineering e manter padrão profissional de mercado.
+- **Simples e direto:** um chatbot com fluxo linear, sem over-engineering.
+- **WhatsApp como interface única:** sem frontend web, toda interação via WhatsApp Business API (Meta Cloud API).
+- **Dados no banco:** registros persistidos em PostgreSQL, Excel gerado sob demanda.
+- **Segurança por número:** apenas números autorizados podem interagir com o bot. Admins têm comandos especiais.
 
-### Ajustes estratégicos adotados nesta revisão
+### Decisões de projeto
 
-- **"Offline first" foi reinterpretado como local-first:** a aplicação não precisa funcionar sem backend; ela precisa funcionar sem internet externa.
-- **Login canônico por e-mail:** o identificador oficial de acesso passa a ser o e-mail. Usuário inicial: `admin@starterkit.com` / `senha123`.
-- **Refresh token em cookie HttpOnly:** mantém a simplicidade do frontend e melhora a segurança em relação a `localStorage`.
-- **Desenvolvimento e produção separados com clareza:** em dev sobe apenas o PostgreSQL via Docker; Nginx entra no fluxo de produção e homologação.
-- **Banco real nos testes de integração:** backend usa Testcontainers com PostgreSQL, evitando divergências entre H2 e produção.
-- **Observabilidade mínima obrigatória:** health check via Actuator, logs estruturados em produção e `traceId` por requisição.
-- **Tempo padronizado:** timezone padrão `America/Sao_Paulo`, timestamps persistidos com timezone e backend preferindo `Instant`.
-- **Concorrência otimista como padrão:** entidades relevantes devem ter `version` para prevenir sobrescritas silenciosas.
-- **Backend como fonte real de permissão:** frontend não define autorização, apenas experiência e navegação.
-- **Backup e restore como decisão arquitetural:** quando existir estado fora do banco, ele entra no perímetro operacional do sistema.
+- **Stack:** Node.js + TypeScript + Prisma + PostgreSQL.
+- **Integração:** Meta Cloud API (WhatsApp Business) via webhooks.
+- **Autorização:** por número de telefone cadastrado no banco com role (`USER` / `ADMIN`).
+- **Exportação:** admin envia `/exportar` → bot gera `.xlsx` e envia como documento no WhatsApp.
+- **Timezone:** `America/Sao_Paulo` como fuso operacional.
 
 ---
 
 ## 2. Stack Tecnológica
 
-### Frontend
-
-| Tecnologia | Versão/Detalhe |
-| ---------- | -------------- |
-| React | 18+ |
-| Vite | 5+ |
-| TypeScript | 5+ |
-| Zustand | Gerenciamento de estado de sessão e UI |
-| React Router | Roteamento SPA |
-| MUI (Material UI) | Biblioteca de componentes |
-| Axios | Cliente HTTP |
-| React Hook Form + Zod | Formulários e validação client-side |
-| Vitest | Testes unitários |
-| Testing Library | Testes de componentes |
-
 ### Backend
 
-| Tecnologia | Versão/Detalhe |
-| ---------- | -------------- |
-| Java | 21 |
-| Spring Boot | 3.5.x |
-| Gradle | Build tool |
-| SpringDoc OpenAPI | Swagger / documentação da API |
-| Spring Boot Actuator | Health checks e observabilidade |
-| Lombok | Redução de boilerplate |
-| Flyway | Migrations de banco |
-| SLF4J + Logback | Logging |
-| JJWT | Geração e validação de JWT |
-| JUnit 5 + Mockito | Testes unitários |
-| Testcontainers PostgreSQL | Testes de integração |
+| Tecnologia | Descrição |
+| ---------- | --------- |
+| Node.js | 20+ |
+| TypeScript | 5+ |
+| Express | Servidor HTTP + webhook routes |
+| Prisma | ORM e migrations |
+| Zod | Validação de dados (server-side) |
+| ExcelJS | Geração de planilhas .xlsx |
+| Vitest | Testes unitários e integração |
 
 ### Infraestrutura
 
-| Tecnologia | Detalhe |
-| ---------- | ------- |
-| PostgreSQL | Banco de dados |
-| Nginx | Proxy reverso + serve frontend |
+| Tecnologia | Descrição |
+| ---------- | --------- |
+| PostgreSQL | 16, banco de dados |
 | Docker | Containerização |
 | Docker Compose | Orquestração local |
-| Timezone operacional | `America/Sao_Paulo` |
 
-### Autenticação
+### Integração
 
-| Detalhe | Valor |
-| ------- | ----- |
-| Método | JWT + Refresh Token |
-| Perfis | ADMIN, USER |
-| Admin padrão | login: `admin@starterkit.com` / senha: `senha123` (via Flyway) |
-| Access Token | Em memória no frontend |
-| Refresh Token | Cookie HttpOnly com rotação |
+| Tecnologia | Descrição |
+| ---------- | --------- |
+| Meta Cloud API | WhatsApp Business API (webhooks + send messages) |
+| ngrok | Túnel HTTPS para desenvolvimento local |
 
 ---
 
 ## 3. Estrutura do Repositório
 
 ```text
-starter-kit/
+chatbot-atestado/
 ├── api/
 │   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/com/starterkit/
-│   │   │   └── resources/
-│   │   └── test/
-│   ├── build.gradle
-│   ├── Dockerfile
-│   └── settings.gradle
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   ├── index.html
+│   │   ├── config/
+│   │   ├── handlers/
+│   │   ├── services/
+│   │   ├── validators/
+│   │   ├── types/
+│   │   ├── utils/
+│   │   └── app.ts
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   └── migrations/
 │   ├── package.json
 │   ├── tsconfig.json
-│   ├── vite.config.ts
 │   └── Dockerfile
 ├── documentos/
 ├── regras/
-├── nginx/
 ├── docker-compose.dev.yml
 ├── docker-compose.yml
 ├── projeto.txt
@@ -148,137 +116,116 @@ starter-kit/
 
 ### Fase 1 — Infraestrutura e Ambiente de Desenvolvimento
 
-**Objetivo:** preparar o mono-repo, variáveis de ambiente e banco local para desenvolvimento.
+**Objetivo:** preparar o repositório, ambiente de desenvolvimento e banco local.
 
 | # | Tarefa | Detalhes | Status |
 |---|--------|----------|--------|
-| 1.1 | Criar estrutura de diretórios | `/api`, `/frontend`, `/documentos`, `/regras`, `/nginx` | ⬜ |
-| 1.2 | Criar `docker-compose.dev.yml` | PostgreSQL 16 Alpine, volume `postgres_data`, porta 5432 exposta, healthcheck. Em dev não sobe Nginx | ⬜ |
-| 1.3 | Criar `.editorconfig` | Padronizar indentação, charset e final de linha | ⬜ |
-| 1.4 | Criar `.gitignore` | Ignorar `.env`, `node_modules/`, `build/`, `.gradle/`, `dist/`, `postgres_data/`, IDEs | ✅ |
-| 1.5 | Criar `.env.example` | Variáveis: `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION`, `JWT_REFRESH_EXPIRATION`, `CORS_ORIGINS` | ⬜ |
-| 1.6 | Definir convenção temporal | Registrar timezone padrão `America/Sao_Paulo`, uso de `TIMESTAMPTZ` e `Instant` na base | ⬜ |
-| 1.7 | Criar `README.md` | Pré-requisitos, setup dev e prod, links para documentos | ⬜ |
-| 1.8 | Inicializar Git | `main` + `develop` | ✅ |
+| 1.1 | Criar estrutura de diretórios | `/api/src`, `/api/prisma`, `/documentos`, `/regras` | ⬜ |
+| 1.2 | Inicializar projeto Node.js + TypeScript | `package.json`, `tsconfig.json`, dependências base | ⬜ |
+| 1.3 | Configurar Prisma | `schema.prisma` com provider PostgreSQL, config de datasource | ⬜ |
+| 1.4 | Criar `docker-compose.dev.yml` | PostgreSQL 16 Alpine, volume, porta 5432, healthcheck | ⬜ |
+| 1.5 | Criar `.env.example` | Variáveis de banco, WhatsApp API, timezone | ⬜ |
+| 1.6 | Configurar scripts | `dev`, `build`, `start`, `db:migrate`, `db:seed` | ⬜ |
+| 1.7 | Criar `.editorconfig` | Padronizar indentação e charset | ⬜ |
+| 1.8 | Criar `README.md` | Setup, pré-requisitos, variáveis, comandos úteis | ⬜ |
+| 1.9 | Atualizar `.gitignore` | Node.js, Prisma, .env, dist | ✅ |
 
-**Critério de conclusão:** `docker compose -f docker-compose.dev.yml up` sobe o PostgreSQL na porta 5432 e responde a conexões.
+**Critério de conclusão:** `docker compose -f docker-compose.dev.yml up` sobe PostgreSQL; `npm run dev` inicia o servidor na porta 3000.
 
-### Fase 2 — Backend Base
+### Fase 2 — Integração WhatsApp Business API
 
-**Objetivo:** projeto Spring Boot funcional com Flyway, Swagger, Actuator, tratamento de erros e logging.
-
-| # | Tarefa | Detalhes | Status |
-|---|--------|----------|--------|
-| 2.1 | Inicializar Spring Boot | Dependências: web, data-jpa, validation, security, actuator, postgresql, flyway-core, lombok, springdoc, jjwt | ⬜ |
-| 2.2 | Configurar profiles | `application.yml`, `application-dev.yml`, `application-prod.yml` | ⬜ |
-| 2.3 | Configurar SpringDoc OpenAPI | Swagger UI em `/api/swagger-ui/index.html` | ⬜ |
-| 2.4 | Migration V1: tabela `users` | Usar `TIMESTAMPTZ`, unicidade por e-mail normalizado e coluna `version` para concorrência otimista | ⬜ |
-| 2.5 | Migration V2: tabela `refresh_tokens` | Incluir `revoked_at` e índices em `user_id` e `expires_at` | ⬜ |
-| 2.6 | Migration V3: inserir admin | `admin@starterkit.com` com senha BCrypt de `senha123` | ⬜ |
-| 2.7 | Criar entidades JPA | `User`, `RefreshToken`, `Role`, sem Lombok `@Data` em entidade; `User` com `@Version` | ⬜ |
-| 2.8 | Tratamento global de erros | `GlobalExceptionHandler` com formato padronizado e `traceId` | ⬜ |
-| 2.9 | Logging estruturado | Dev legível, prod em JSON com `traceId` | ⬜ |
-| 2.10 | DTOs de paginação | `PageResponse<T>` genérico | ⬜ |
-| 2.11 | Expor health check | `/api/actuator/health` para Docker | ⬜ |
-| 2.12 | Configurar convenção de tempo | Configurar timezone padrão da aplicação e evitar dependência de `systemDefault` | ⬜ |
-| 2.13 | Dockerfile backend | Multi-stage com runtime não-root | ⬜ |
-
-**Critério de conclusão:** backend sobe com `./gradlew bootRun`, Swagger acessível em `http://localhost:8080/api/swagger-ui/index.html`, health check responde em `http://localhost:8080/api/actuator/health`, banco com tabelas criadas e logs corretos.
-
-### Fase 3 — Autenticação e Autorização
-
-**Objetivo:** login funcional com JWT, refresh token seguro e proteção de rotas por perfil.
+**Objetivo:** webhook funcional recebendo e respondendo mensagens no WhatsApp.
 
 | # | Tarefa | Detalhes | Status |
 |---|--------|----------|--------|
-| 3.1 | Spring Security config | Permitir `/api/auth/**`, `/api/swagger-ui/**`, `/api/actuator/health` | ⬜ |
-| 3.2 | `JwtService` | Gerar e validar access token com TTL de 15 min | ⬜ |
-| 3.3 | `JwtAuthenticationFilter` | Extrair Bearer token, validar e popular `SecurityContext` | ⬜ |
-| 3.4 | `AuthController` | `login`, `refresh`, `logout`, `me` | ⬜ |
-| 3.5 | `AuthService` | Login por e-mail, refresh por cookie, logout com revogação | ⬜ |
-| 3.6 | Refresh token rotation | Novo token a cada uso, invalidação do anterior | ⬜ |
-| 3.7 | Proteção por role | `@PreAuthorize("hasRole('ADMIN')")` no CRUD de usuários; backend como fonte de verdade de permissão | ⬜ |
-| 3.8 | CORS | Dev: `http://localhost:5173`; produção: origem servida pelo Nginx; `allowCredentials=true` | ⬜ |
+| 2.1 | Criar servidor Express | `app.ts` com rota de webhook (`GET` para verificação, `POST` para mensagens) | ⬜ |
+| 2.2 | Implementar verificação de webhook | Resposta ao challenge da Meta com `WHATSAPP_VERIFY_TOKEN` | ⬜ |
+| 2.3 | Implementar verificação de assinatura | Validar `X-Hub-Signature-256` com `WHATSAPP_APP_SECRET` | ⬜ |
+| 2.4 | Implementar `whatsapp.service.ts` | Enviar mensagem de texto via Meta API | ⬜ |
+| 2.5 | Implementar envio de documento | Upload de media + envio de documento via Meta API | ⬜ |
+| 2.6 | Testar com ngrok | Configurar túnel HTTPS, registrar webhook na Meta | ⬜ |
+| 2.7 | Echo bot | Bot responde com eco da mensagem recebida (teste de integração) | ⬜ |
 
-**Critério de conclusão:** login cria sessão com access token + cookie de refresh, `me` funciona com bearer token, `refresh` renova sessão, `logout` revoga sessão, requests sem token retornam 401.
+**Critério de conclusão:** enviar mensagem no WhatsApp → bot responde com eco. Documentos podem ser enviados via API.
 
-### Fase 4 — Frontend Base
+### Fase 3 — Autorização e Controle de Acesso
 
-**Objetivo:** app React funcional com login, dashboard vazio, navegação e integração com API.
-
-| # | Tarefa | Detalhes | Status |
-|---|--------|----------|--------|
-| 4.1 | Inicializar Vite + React + TS | Projeto na pasta `/frontend` | ⬜ |
-| 4.2 | Instalar dependências | MUI, Zustand, React Router, Axios, React Hook Form, Zod, `@fontsource/roboto` | ⬜ |
-| 4.3 | Tema MUI | Tema local, sem CDN | ⬜ |
-| 4.4 | Axios instance | `baseURL=/api`, `withCredentials=true`, interceptors de auth | ⬜ |
-| 4.5 | `useAuthStore` | `user`, `accessToken`, `login`, `logout`, `refreshSession`, `fetchMe` | ⬜ |
-| 4.6 | `AuthLayout` | Card centralizado | ⬜ |
-| 4.7 | `MainLayout` | Sidebar + TopBar + conteúdo | ⬜ |
-| 4.8 | Rotas protegidas | Redirecionamento por autenticação e role | ⬜ |
-| 4.9 | Página Login | Formulário com React Hook Form + Zod | ⬜ |
-| 4.10 | Página Dashboard | Placeholder para widgets futuros | ⬜ |
-| 4.11 | Configurar rotas | `/login`, `/`, `/users`, `/users/new`, `/users/:id` | ⬜ |
-| 4.12 | `vite.config.ts` | Proxy `/api` → `http://localhost:8080` | ⬜ |
-| 4.13 | Dockerfile frontend | Multi-stage para build estático | ⬜ |
-
-**Critério de conclusão:** `npm run dev` exibe login, autentica com `admin@starterkit.com` / `senha123`, mantém sessão via cookie HttpOnly e permite logout correto.
-
-### Fase 5 — CRUD de Usuário
-
-**Objetivo:** CRUD completo servindo como modelo replicável.
+**Objetivo:** apenas números autorizados interagem com o bot.
 
 | # | Tarefa | Detalhes | Status |
 |---|--------|----------|--------|
-| 5.1 | `UserRepository` | `findByEmail()`, `existsByEmail()`, `findAllActive(Pageable)` com e-mail normalizado | ⬜ |
-| 5.2 | DTOs | Requests com Bean Validation; response com `createdAt` e `updatedAt` | ⬜ |
-| 5.3 | `UserService` | Listar, buscar, criar, atualizar, deletar, impedir auto-exclusão | ⬜ |
-| 5.4 | `UserController` | Endpoints REST paginados e protegidos | ⬜ |
-| 5.5 | Types TypeScript | `UserResponse`, `CreateUserRequest`, `UpdateUserRequest` | ⬜ |
-| 5.6 | `userService.ts` | `list`, `getById`, `create`, `update`, `remove` | ⬜ |
-| 5.7 | `useUserStore` | Lista, loading, paginação e ações | ⬜ |
-| 5.8 | Página listagem | Tabela server-side com loading, empty state e error state | ⬜ |
-| 5.9 | Formulário criar/editar | MUI + React Hook Form + Zod | ⬜ |
-| 5.10 | Confirmação de exclusão | Dialog MUI | ⬜ |
-| 5.11 | Sidebar — item Usuários | Visível apenas para ADMIN | ⬜ |
+| 3.1 | Migration: `authorized_numbers` | Tabela com `phone_number`, `name`, `role`, `active`, timestamps | ⬜ |
+| 3.2 | Seed: números iniciais | Inserir pelo menos um admin e um usuário de teste | ⬜ |
+| 3.3 | Implementar `auth.service.ts` | Verificar se número está autorizado e ativo, retornar role | ⬜ |
+| 3.4 | Rejeitar não autorizados | Mensagem educada para números não cadastrados | ⬜ |
+| 3.5 | Identificar admin | Permitir comandos admin (`/exportar`) apenas para role `ADMIN` | ⬜ |
 
-**Critério de conclusão:** admin gerencia usuários com paginação, validações claras e fluxo completo de criação, edição e exclusão.
+**Critério de conclusão:** número não cadastrado recebe mensagem de rejeição. Número cadastrado recebe resposta do bot. Admin é identificado corretamente.
 
-### Fase 6 — Qualidade e Testes
+### Fase 4 — Fluxo de Conversa (Máquina de Estados)
 
-**Objetivo:** testes automatizados cobrindo cenários principais e servindo de referência.
+**Objetivo:** conversa guiada coleta todos os dados do atestado.
 
 | # | Tarefa | Detalhes | Status |
 |---|--------|----------|--------|
-| 6.1 | Configurar testes backend | `spring-boot-starter-test`, `spring-security-test`, `testcontainers-postgresql`; sem H2 | ⬜ |
-| 6.2 | Testes unitários — `UserService` | `create`, `update`, `delete`, `list` | ⬜ |
-| 6.3 | Testes unitários — `JwtService` | gerar, validar, expirar, extrair claims | ⬜ |
-| 6.4 | Teste integração — `AuthController` | login, refresh por cookie, logout, `me` | ⬜ |
-| 6.5 | Teste integração — `UserController` | CRUD, autorização por role, e-mail duplicado | ⬜ |
-| 6.6 | Configurar Vitest + Testing Library | `jsdom`, setup, aliases | ⬜ |
-| 6.7 | Teste — `useAuthStore` | login, logout, bootstrap de sessão, `fetchMe` | ⬜ |
-| 6.8 | Teste componente — LoginPage | renderização, validação, erro de credenciais | ⬜ |
-| 6.9 | Testar concorrência e tempo | Cobrir serialização temporal, `@Version` e regras de período dependentes do timezone configurado | ⬜ |
-| 6.10 | Documentar padrão de testes | Convenções, cobertura esperada e critérios mínimos | ⬜ |
+| 4.1 | Migration: `conversations` | Tabela com `phone_number`, `current_step`, `data` (JSONB), timestamps | ⬜ |
+| 4.2 | Implementar `conversation.service.ts` | Máquina de estados: criar, avançar, recuperar conversa ativa | ⬜ |
+| 4.3 | Etapa: dados gerais | Unidade, matrícula, nome, e-mail | ⬜ |
+| 4.4 | Etapa: tipo e local | Tipo de atendimento, local, clínica/hospital, médico/dentista | ⬜ |
+| 4.5 | Etapa: decisão afastamento | Pergunta SIM/NÃO, condicional para fluxo horas ou dias | ⬜ |
+| 4.6 | Fluxo: atendimento por horas | Data, hora início, hora término | ⬜ |
+| 4.7 | Fluxo: afastamento por dias | Data inicial, hora início, hora término, duração, data retorno, CID | ⬜ |
+| 4.8 | Etapa: confirmação | Resumo dos dados, confirmação ou cancelamento | ⬜ |
+| 4.9 | Validadores Zod | E-mail, datas (DD/MM/AAAA), horas (HH:MM), número inteiro positivo | ⬜ |
+| 4.10 | Timeout de conversa | Expirar conversas sem interação por 30 minutos | ⬜ |
 
-**Critério de conclusão:** `./gradlew test` e `npm run test` passam com cobertura útil dos fluxos críticos.
+**Critério de conclusão:** conversa completa no WhatsApp coleta todos os dados, valida entradas e exibe resumo para confirmação.
 
-### Fase 7 — Runtime Web, Docker Produção e Finalização
+### Fase 5 — Persistência dos Atestados
 
-**Objetivo:** aplicação completa rodando em Docker com Nginx como entrada única, pronta para replicação.
+**Objetivo:** atestados confirmados são salvos no banco.
 
 | # | Tarefa | Detalhes | Status |
 |---|--------|----------|--------|
-| 7.1 | `docker-compose.yml` | Serviços: postgres, api, nginx; só porta 80 exposta | ⬜ |
-| 7.2 | Variáveis via `.env` | `.env.example` documentado e `.env` ignorado | ⬜ |
-| 7.3 | Health checks | Postgres com `pg_isready`; backend com `/api/actuator/health` | ⬜ |
-| 7.4 | Nginx produção | Gzip, cache de assets, headers básicos de segurança e bloqueio de arquivos ocultos | ⬜ |
-| 7.5 | Estratégia de backup e restore | Documentar o que deve entrar em backup quando houver arquivos operacionais fora do banco | ⬜ |
-| 7.6 | `README.md` final | Sobre, setup, deploy, estrutura e variáveis | ⬜ |
-| 7.7 | Atualizar documentos | Revisar plano, arquitetura, regras, infraestrutura e decisões compartilhadas | ⬜ |
-| 7.8 | Teste final de replicação | `docker compose up --build` sobe o sistema completo e permite login + CRUD | ⬜ |
+| 5.1 | Migration: `atestados` | Tabela com todos os campos do objeto de atendimento | ⬜ |
+| 5.2 | Implementar `atestado.service.ts` | Salvar atestado completo a partir dos dados da conversa | ⬜ |
+| 5.3 | Confirmação ao usuário | Mensagem de sucesso após registro | ⬜ |
+| 5.4 | Iniciar nova conversa | Após finalizar, permitir novo registro na próxima mensagem | ⬜ |
 
-**Critério de conclusão:** qualquer pessoa com Docker instalado consegue subir a aplicação, acessar `http://localhost`, autenticar e gerenciar usuários.
+**Critério de conclusão:** atestado confirmado é salvo no PostgreSQL. Registro é consultável via SQL.
+
+### Fase 6 — Exportação Excel
+
+**Objetivo:** administradores exportam atestados para Excel via comando no WhatsApp.
+
+| # | Tarefa | Detalhes | Status |
+|---|--------|----------|--------|
+| 6.1 | Implementar `export.service.ts` | Gerar `.xlsx` com ExcelJS conforme mapeamento de colunas | ⬜ |
+| 6.2 | Mapear colunas | Headers da planilha conforme especificação (seção 5 da arquitetura) | ⬜ |
+| 6.3 | Comando `/exportar` | Reconhecer comando, verificar role admin, gerar e enviar planilha | ⬜ |
+| 6.4 | Filtros opcionais | `/exportar` sem filtro = todos; `/exportar 03/2026` = mês; etc. | ⬜ |
+| 6.5 | Envio do arquivo | Upload de media + envio como documento via WhatsApp | ⬜ |
+
+**Critério de conclusão:** admin envia `/exportar` → recebe arquivo `.xlsx` com os atestados registrados, colunas corretas e uma linha por atendimento.
+
+### Fase 7 — Testes e Finalização
+
+**Objetivo:** testes automatizados, documentação final e estabilidade.
+
+| # | Tarefa | Detalhes | Status |
+|---|--------|----------|--------|
+| 7.1 | Configurar Vitest | Setup do test runner | ⬜ |
+| 7.2 | Testes unitários — validadores | Testar schemas Zod (e-mail, datas, horas, SIM/NÃO) | ⬜ |
+| 7.3 | Testes unitários — máquina de estados | Testar transições, dados parciais, timeout | ⬜ |
+| 7.4 | Testes unitários — geração Excel | Testar colunas, dados condicionais, formatação | ⬜ |
+| 7.5 | Teste integração — fluxo completo | Simular conversa completa → salvar → exportar | ⬜ |
+| 7.6 | Dockerfile | Multi-stage para produção, runtime não-root | ⬜ |
+| 7.7 | `docker-compose.yml` | Serviços: PostgreSQL + API, variáveis via `.env` | ⬜ |
+| 7.8 | Health check da API | Endpoint `/health` para Docker | ⬜ |
+| 7.9 | README.md final | Setup completo, pré-requisitos, comandos, variáveis | ⬜ |
+| 7.10 | Revisar documentos | Atualizar plano, arquitetura, regras, infraestrutura | ⬜ |
+
+**Critério de conclusão:** `npm test` passa. `docker compose up --build` sobe o sistema completo. Bot funcional no WhatsApp.
 
 ---
 
@@ -286,8 +233,7 @@ starter-kit/
 
 | Data | Fase | Descrição |
 | ---- | ---- | --------- |
-| 07/03/2026 | Fase 0 | Planejamento inicial concluído |
-| 08/03/2026 | Fase 0 | Planejamento revisado para alinhar segurança, autenticação, observabilidade e fluxo dev/prod |
+| 13/03/2026 | Fase 0 | Planejamento concluído — projeto adaptado do starter-kit genérico para chatbot WhatsApp de atestados |
 
 ---
 

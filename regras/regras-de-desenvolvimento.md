@@ -1,8 +1,8 @@
-# Regras de Desenvolvimento — starter-kit
+# Regras de Desenvolvimento — Chatbot WhatsApp Atestados
 
-> **Projeto:** starter-kit
-> **Data de criação:** 07/03/2026
-> **Última atualização:** 08/03/2026
+> **Projeto:** chatbot-atestado
+> **Data de criação:** 13/03/2026
+> **Última atualização:** 13/03/2026
 
 Documento complementar: [../documentos/decisoes-compartilhadas.md](../documentos/decisoes-compartilhadas.md)
 
@@ -10,10 +10,10 @@ Documento complementar: [../documentos/decisoes-compartilhadas.md](../documentos
 
 ## 1. Princípios Gerais
 
-- **Simplicidade:** evitar over-engineering.
+- **Simplicidade:** evitar over-engineering. O chatbot é um fluxo linear.
 - **Consistência:** seguir os padrões definidos neste documento.
-- **Segurança:** toda entrada do usuário deve ser validada.
-- **Reprodutibilidade:** o projeto deve funcionar localmente de forma previsível.
+- **Segurança:** validar toda entrada do usuário, verificar assinatura de webhooks.
+- **Reprodutibilidade:** o projeto deve funcionar localmente de forma previsível com Docker.
 
 ---
 
@@ -22,80 +22,56 @@ Documento complementar: [../documentos/decisoes-compartilhadas.md](../documentos
 ### Backend (`/api`)
 
 ```text
-src/main/java/com/starterkit/
-├── config/
-├── controller/
-├── dto/
-│   ├── request/
-│   └── response/
-├── entity/
-├── enums/
-├── exception/
-├── filter/
-├── repository/
-├── service/
-└── util/
+src/
+├── config/          → variáveis de ambiente, constantes
+├── handlers/        → rotas Express e handlers de webhook
+├── services/        → lógica de negócio (um service por domínio)
+├── validators/      → schemas Zod de validação
+├── types/           → interfaces e tipos TypeScript
+├── utils/           → funções utilitárias
+└── app.ts           → setup do servidor Express
 ```
 
-**Regra:** cada classe deve ficar no pacote correto conforme sua responsabilidade. Controller não contém lógica de negócio. Service não acessa `HttpServletRequest`. Repository não contém lógica de negócio.
+**Regra:** cada módulo deve ficar no diretório correto conforme sua responsabilidade:
+- Handlers não contêm lógica de negócio — apenas roteiam e delegam.
+- Services contêm toda a lógica de negócio e orquestração.
+- Validators são puros — sem acesso a banco ou serviços.
 
-**Regra adicional:** entidades JPA não devem usar Lombok `@Data`. Preferir `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor` e `@AllArgsConstructor`.
-
-**Regra adicional:** entidades relevantes devem ter `createdAt`, `updatedAt` e `version`; usar `@Version` para concorrência otimista quando fizer sentido de negócio.
-
-### Frontend (`/frontend`)
+### Prisma (`/api/prisma`)
 
 ```text
-src/
-├── assets/
-├── components/
-│   ├── common/
-│   └── layout/
-├── layouts/
-├── pages/
-├── routes/
-├── services/
-├── stores/
-├── types/
-└── utils/
+prisma/
+├── schema.prisma
+├── migrations/
+└── seed.ts
 ```
-
-**Regra:** componentes de página ficam em `pages/`. Componentes reutilizáveis ficam em `components/`. Lógica de API fica em `services/`, nunca diretamente em componentes.
-
-**Regra adicional:** formulários devem usar `react-hook-form` com `zod`.
 
 ---
 
 ## 3. Nomenclatura
 
-### Backend (Java)
+### TypeScript
 
 | Elemento | Convenção | Exemplo |
 | -------- | --------- | ------- |
-| Classe | PascalCase | `UserController` |
-| Interface | PascalCase | `UserRepository` |
-| Método | camelCase | `findByEmail()` |
-| Variável | camelCase | `userName` |
-| Constante | UPPER_SNAKE_CASE | `MAX_PAGE_SIZE` |
-| Enum (valores) | UPPER_SNAKE_CASE | `EM_PREPARO`, `CANCELADO` |
-| Pacote | lowercase | `com.starterkit.controller` |
-| Tabela | snake_case, plural | `users`, `order_items` |
-| Coluna | snake_case | `created_at`, `store_id` |
-| DTO request | PascalCase + `Request` | `CreateUserRequest` |
-| DTO response | PascalCase + `Response` | `UserResponse` |
-| Endpoint REST | kebab-case, plural | `/api/order-items` |
-| Migration | `V{n}__{descricao}.sql` | `V1__create_users_table.sql` |
+| Arquivo de service | camelCase + `.service.ts` | `conversation.service.ts` |
+| Arquivo de handler | camelCase + `.handler.ts` | `webhook.handler.ts` |
+| Arquivo de validator | camelCase + `.validator.ts` | `atestado.validator.ts` |
+| Arquivo de tipo | camelCase + `.types.ts` | `whatsapp.types.ts` |
+| Interface/Type | PascalCase | `AtestadoData`, `ConversationStep` |
+| Variável/função | camelCase | `handleMessage`, `sendTextMessage` |
+| Constante | UPPER_SNAKE_CASE | `MAX_CONVERSATION_TIMEOUT` |
+| Enum (valores) | UPPER_SNAKE_CASE | `UNIDADE_TRABALHO`, `CONFIRMACAO` |
 
-### Frontend (TypeScript/React)
+### Banco de dados
 
 | Elemento | Convenção | Exemplo |
 | -------- | --------- | ------- |
-| Componente | PascalCase | `UserListPage.tsx` |
-| Hook/Store | camelCase com prefixo `use` | `useAuthStore.ts` |
-| Service | camelCase + `Service` | `authService.ts` |
-| Interface | PascalCase | `UserResponse` |
-| Variável/função | camelCase | `handleAcceptOrder` |
-| Constante | UPPER_SNAKE_CASE | `API_BASE_URL` |
+| Tabela | snake_case, plural | `authorized_numbers`, `atestados` |
+| Coluna | snake_case | `phone_number`, `created_at` |
+| Índice | `idx_{tabela}_{coluna}` | `idx_atestados_phone` |
+| Índice unique | `ux_{tabela}_{coluna}` | `ux_authorized_numbers_phone` |
+| Migration | descrição em snake_case | `create_authorized_numbers` |
 
 ---
 
@@ -103,178 +79,119 @@ src/
 
 ### 4.1 SQL Injection
 
-- Nunca concatenar strings para montar queries SQL.
-- Sempre usar Spring Data query methods ou JPQL parametrizado.
-- SQL puro apenas em migrations Flyway.
+- Nunca concatenar strings para montar queries.
+- Sempre usar Prisma Client (queries parametrizadas automaticamente).
+- SQL puro apenas em migrations Prisma, com valores literais.
 
-### 4.2 XSS
+### 4.2 Webhook
 
-- Não usar `dangerouslySetInnerHTML` sem sanitização explícita.
-- Não inserir dados do usuário diretamente no DOM.
-- Não persistir refresh token em `localStorage` ou `sessionStorage`.
+- Verificar `X-Hub-Signature-256` em toda requisição `POST` do webhook.
+- Usar `WHATSAPP_APP_SECRET` para computar o HMAC.
+- Rejeitar requests com assinatura inválida ou ausente.
 
-### 4.3 Senhas
+### 4.3 Autorização
 
-- Armazenar sempre com BCrypt.
-- Nunca logar senhas.
-- Nunca retornar senha em DTO de resposta.
-- Validação mínima: 8 caracteres.
+- Apenas números cadastrados na tabela `authorized_numbers` com `active = true` podem interagir.
+- Comandos admin (`/exportar`) só funcionam para números com role `ADMIN`.
+- Números desconhecidos recebem mensagem de rejeição educada.
 
-### 4.4 JWT
+### 4.4 Variáveis Sensíveis
 
-- Secret via variável de ambiente.
-- Access token com expiração curta.
-- Refresh token com rotação a cada uso.
-- Refresh token em cookie `HttpOnly`, `SameSite=Lax`.
-- Tokens devem ser invalidados ao trocar senha ou fazer logout.
+- Tokens da Meta API via variáveis de ambiente (`.env`).
+- `.env` nunca versionado — apenas `.env.example`.
+- Nunca logar tokens ou secrets.
 
-### 4.5 CORS
+### 4.5 Validação de Entrada
 
-- Em desenvolvimento: permitir `http://localhost:5173`.
-- Em produção: permitir apenas a origem servida pelo Nginx ou configurada por variável de ambiente.
-- Quando houver refresh por cookie, `allowCredentials=true` é obrigatório.
+- Toda entrada do usuário via WhatsApp deve ser validada com Zod antes de processar.
+- E-mail normalizado para lowercase antes de persistir.
+- Datas validadas com formato `DD/MM/AAAA`.
+- Horas validadas com formato `HH:MM`.
+- Valores SIM/NÃO aceitar variações: `sim`, `s`, `não`, `nao`, `n`.
 
-### 4.6 Paginação e Ordenação
-
-- `page` default = `0`.
-- `size` default = `10`.
-- `size` máximo = `50`.
-- Campos de ordenação devem ser whitelistados no backend.
-- Nunca confiar diretamente no campo de ordenação enviado pelo cliente.
-
-### 4.7 Datas e Timezone
+### 4.6 Datas e Timezone
 
 - O timezone padrão do projeto é `America/Sao_Paulo`.
 - Colunas temporais no PostgreSQL devem usar `TIMESTAMPTZ`.
-- No backend, preferir `Instant` para persistência e processamento interno.
-- Conversões de fuso e formatação para tela ou relatório devem ocorrer na borda da aplicação.
-- Evitar `ZoneId.systemDefault()` como fonte de verdade; usar configuração explícita da aplicação.
-
-### 4.8 Estado Operacional Fora do Banco
-
-- Sempre que houver arquivos operacionais, eles passam a fazer parte do perímetro de segurança e operação.
-- Backup e restore devem considerar banco e arquivos operacionais como um conjunto coerente.
-- Não assumir que `docker compose up` resolve toda a operação quando existirem diretórios externos ou volumes sensíveis.
+- Colunas de data pura usam `DATE`; horas puras usam `TIME`.
+- Nunca depender do timezone do sistema operacional.
 
 ---
 
 ## 5. Padrões de Código
 
-### 5.1 Backend
+### 5.1 Handler (Webhook)
 
-#### Controller
+```typescript
+// handlers/webhook.handler.ts
+import { Router, Request, Response } from 'express';
+import { conversationService } from '../services/conversation.service';
+import { authService } from '../services/auth.service';
 
-```java
-@RestController
-@RequestMapping("/api/users")
-@RequiredArgsConstructor
-public class UserController {
+const router = Router();
 
-    private final UserService userService;
+router.post('/webhook', async (req: Request, res: Response) => {
+  // 1. Extrair mensagem do payload
+  // 2. Verificar autorização do número
+  // 3. Delegar para o service de conversa
+  // 4. Responder 200 ao webhook
+  res.sendStatus(200);
+});
 
-    @GetMapping
-    public ResponseEntity<PageResponse<UserResponse>> list(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(userService.list(page, size));
-    }
-}
+export default router;
 ```
 
 **Regras:**
+- Handlers apenas roteiam e delegam — sem lógica de negócio.
+- Sempre responder `200` ao webhook da Meta rapidamente.
+- Processar mensagens de forma assíncrona quando necessário.
 
-- Usar `@RequiredArgsConstructor` para injeção via construtor.
-- Usar `@Valid` em requests.
-- Retornar `ResponseEntity` com status correto.
-- Não conter lógica de negócio.
-- Endpoints paginados devem impor limites de `size` e ordenação permitida.
-- Autorização real deve estar no backend; ocultação no frontend nunca substitui regra de acesso.
+### 5.2 Service
 
-#### Service
+```typescript
+// services/conversation.service.ts
+import { prisma } from '../config/database';
 
-```java
-@Service
-@RequiredArgsConstructor
-public class UserService {
-
-    private final UserRepository userRepository;
-
-    public UserResponse create(CreateUserRequest request) {
-        String normalizedEmail = request.getEmail().trim().toLowerCase();
-        if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new BusinessException("E-mail já cadastrado");
-        }
-        return null;
-    }
-}
-```
-
-**Regras:**
-
-- Usar `@Transactional` em operações de escrita.
-- Lançar exceções de negócio específicas.
-- Não capturar exceções genéricas sem necessidade.
-- Converter Entity para DTO na service.
-- Normalizar e-mail para lowercase antes de persistir ou consultar.
-- Regras de período e corte temporal devem usar timezone configurado explicitamente.
-
-#### Repository
-
-```java
-public interface UserRepository extends JpaRepository<User, Long> {
-
-    Optional<User> findByEmail(String email);
-
-    boolean existsByEmail(String email);
-
-    @Query("SELECT u FROM User u WHERE u.active = true")
-    Page<User> findAllActive(Pageable pageable);
-}
-```
-
-**Regras:**
-
-- Repository deve ser interface que estende `JpaRepository`.
-- Preferir query methods do Spring Data.
-- Se usar `@Query`, parametrizar corretamente.
-- Não usar concatenação em queries nativas.
-
-### 5.2 Frontend
-
-#### Service (API)
-
-```tsx
-import api from './api';
-
-export const userService = {
-  list: (page: number, size: number) =>
-    api.get('/users', { params: { page, size } }),
+export const conversationService = {
+  async handleMessage(phoneNumber: string, message: string) {
+    // 1. Buscar conversa ativa
+    // 2. Determinar próximo passo
+    // 3. Validar entrada
+    // 4. Atualizar dados da conversa
+    // 5. Enviar próxima pergunta
+  },
 };
 ```
 
 **Regras:**
+- Um service por domínio (`conversation`, `atestado`, `export`, `whatsapp`, `auth`).
+- Services contêm toda lógica de negócio.
+- Acesso a banco via Prisma Client.
+- Validação de entrada via schemas Zod.
 
-- Um service por domínio.
-- Sempre tipar request e response.
-- Usar a instância Axios configurada em `api.ts`.
+### 5.3 Validator (Zod)
 
-#### Zustand Store
+```typescript
+// validators/atestado.validator.ts
+import { z } from 'zod';
 
-```tsx
-interface AuthState {
-  user: UserResponse | null;
-  accessToken: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-}
+export const emailSchema = z.string().email('E-mail inválido').transform(v => v.toLowerCase());
+
+export const dateSchema = z.string().regex(
+  /^\d{2}\/\d{2}\/\d{4}$/,
+  'Formato esperado: DD/MM/AAAA'
+);
+
+export const timeSchema = z.string().regex(
+  /^\d{2}:\d{2}$/,
+  'Formato esperado: HH:MM'
+);
 ```
 
 **Regras:**
-
-- Uma store por domínio.
-- State e actions no mesmo `create`.
-- Chamadas HTTP via services.
-- Não persistir refresh token em storage do navegador.
+- Schemas Zod são puros — sem dependência de banco ou serviços.
+- Um arquivo de validator por domínio ou grupo de validações.
+- Mensagens de erro em português.
 
 ---
 
@@ -295,13 +212,13 @@ Fluxo padrão:
 
 ## 7. Docker
 
-### Regras para Dockerfiles
+### Regras para Dockerfile
 
 - Usar multi-stage build.
-- Imagem final mínima.
-- Não incluir ferramentas de build na imagem final.
+- Imagem final mínima (Alpine).
+- Não incluir devDependencies na imagem final.
 - Não rodar container como root em produção.
-- Health checks são obrigatórios para serviços principais.
+- Health check obrigatório para a API.
 
 ### Variáveis de Ambiente
 
@@ -309,42 +226,39 @@ Fluxo padrão:
 | -------- | --------- | ------- |
 | `DB_HOST` | Host do PostgreSQL | `postgres` |
 | `DB_PORT` | Porta do PostgreSQL | `5432` |
-| `DB_NAME` | Nome do banco | `starterkit` |
-| `DB_USERNAME` | Usuário do banco | `starterkit` |
+| `DB_NAME` | Nome do banco | `chatbot` |
+| `DB_USERNAME` | Usuário do banco | `chatbot` |
 | `DB_PASSWORD` | Senha do banco | `secret` |
-| `JWT_SECRET` | Chave secreta do JWT | valor forte |
-| `JWT_EXPIRATION` | TTL do access token | `900000` |
-| `JWT_REFRESH_EXPIRATION` | TTL do refresh token | `604800000` |
-| `CORS_ORIGINS` | Origens permitidas | `http://localhost:80` |
+| `WHATSAPP_TOKEN` | Token da Meta API | — |
+| `WHATSAPP_PHONE_NUMBER_ID` | ID do número WhatsApp | — |
+| `WHATSAPP_VERIFY_TOKEN` | Token de verificação webhook | — |
+| `WHATSAPP_APP_SECRET` | App Secret para assinatura | — |
+| `APP_TIMEZONE` | Timezone (default: `America/Sao_Paulo`) | `America/Sao_Paulo` |
+| `PORT` | Porta da API (default: `3000`) | `3000` |
 
 ---
 
 ## 8. Checklist para Novas Funcionalidades
 
-- [ ] Entity criada com anotações JPA corretas.
-- [ ] Migration Flyway criada para schema novo.
-- [ ] DTOs de request e response separados.
-- [ ] Repository com queries parametrizadas.
-- [ ] Service com regras de negócio e validações.
-- [ ] Controller com endpoints REST corretos e `@Valid`.
-- [ ] Proteção por role aplicada quando necessário.
-- [ ] Paginação e ordenação validadas no backend.
-- [ ] Types TypeScript criados.
-- [ ] Service frontend criado.
-- [ ] Store criada quando fizer sentido.
-- [ ] Formulários com `react-hook-form` + `zod` quando aplicável.
-- [ ] Página com componentes MUI.
-- [ ] Rota adicionada.
-- [ ] Testes unitários adicionados.
-- [ ] Testes de integração adicionados quando o fluxo for crítico.
+- [ ] Arquivo no diretório correto (`handlers/`, `services/`, `validators/`, `types/`).
+- [ ] Tipagem TypeScript completa (sem `any` desnecessário).
+- [ ] Validação de entrada com Zod.
+- [ ] E-mail normalizado para lowercase.
+- [ ] Queries via Prisma (nunca concatenação SQL).
+- [ ] Migration Prisma criada quando há mudança de schema.
+- [ ] Colunas temporais usam `TIMESTAMPTZ`, `DATE` ou `TIME`.
+- [ ] Verificação de autorização do número.
+- [ ] Comandos admin protegidos por role.
+- [ ] Testes unitários adicionados para lógica nova.
+- [ ] Variáveis sensíveis via `.env`, nunca hardcoded.
+- [ ] Plano de desenvolvimento atualizado com status da tarefa.
 
 ---
 
 ## 9. Regras de Teste
 
-- Backend: usar Testcontainers com PostgreSQL para testes de integração.
-- Frontend: usar Vitest + Testing Library.
+- Usar Vitest como framework de testes.
 - Testar comportamento observável, não detalhes de implementação.
-- Todo bug corrigido em auth, service ou segurança deve ganhar teste de regressão.
-- Cobertura inicial deve priorizar autenticação, CRUD de usuários e tratamento global de erros.
-- Fluxos com data, timezone e concorrência otimista devem ter testes dedicados quando forem relevantes.
+- Priorizar testes para: validadores, máquina de estados, geração de Excel.
+- Todo bug corrigido deve ganhar teste de regressão.
+- Dados de teste nunca devem depender do banco de produção.

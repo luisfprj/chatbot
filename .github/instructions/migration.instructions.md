@@ -1,80 +1,93 @@
 ---
-applyTo: "api/src/**/db/migration/**"
-description: "Use when creating or editing Flyway SQL migrations. Covers naming conventions, required columns, temporal types, index patterns, and safety rules against SQL concatenation."
+applyTo: "api/prisma/**"
+description: "Use when creating or editing Prisma schema and migrations. Covers model conventions, required fields, temporal types, index patterns, and safety rules."
 ---
-# Regras para Migrations Flyway
+# Regras para Prisma Schema e Migrations
 
-## Naming Convention
+## Schema (`schema.prisma`)
 
-Padrão obrigatório: `V{n}__{descricao}.sql`
+### Convenções de Modelo
 
-- `V` maiúsculo seguido de número sequencial.
-- Dois underscores `__` separando versão e descrição.
-- Descrição em `snake_case`, descritiva da operação.
+Cada tabela de domínio deve ter:
 
-Exemplos corretos:
-```
-V1__create_users_table.sql
-V2__create_refresh_tokens.sql
-V3__insert_admin_user.sql
-V4__add_phone_to_users.sql
-```
+| Campo | Tipo Prisma | Tipo DB | Regra |
+|-------|-------------|---------|-------|
+| `id` | `BigInt @id @default(autoincrement())` | `BIGSERIAL` | Obrigatório |
+| `created_at` | `DateTime @default(now())` | `TIMESTAMPTZ` | Obrigatório |
+| `updated_at` | `DateTime @updatedAt` | `TIMESTAMPTZ` | Obrigatório |
 
-Exemplos **incorretos**:
-```
-v1_create_users.sql        → v minúsculo, um underscore
-V1-create-users.sql        → hífen em vez de underscore
-create_users.sql           → sem prefixo de versão
-```
+### Convenções Temporais
 
-## Colunas Obrigatórias
-
-Toda tabela de domínio deve ter:
-
-| Coluna | Tipo | Restrição |
-|--------|------|-----------|
-| `id` | `BIGSERIAL` | `PRIMARY KEY` |
-| `created_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT CURRENT_TIMESTAMP` |
-| `updated_at` | `TIMESTAMPTZ` | `NOT NULL DEFAULT CURRENT_TIMESTAMP` |
-| `version` | `BIGINT` | `NOT NULL DEFAULT 0` |
-
-## Convenções Temporais
-
-- **Sempre** usar `TIMESTAMPTZ` para colunas de data e hora. Nunca `TIMESTAMP` sem timezone.
+- **Sempre** usar `DateTime` para timestamps — mapea para `TIMESTAMPTZ` no PostgreSQL.
+- Colunas de data pura: usar tipo nativo `@db.Date`.
+- Colunas de hora pura: usar tipo nativo `@db.Time()`.
 - O timezone operacional do projeto é `America/Sao_Paulo`.
 
-## Contexto Organizacional (quando aplicável)
+### Naming no Schema
 
-Se o projeto derivado usar multi-tenant ou contexto organizacional:
-- Avaliar se a tabela precisa de `store_id` ou equivalente.
-- No starter-kit base, `store_id` **não** é obrigatório por padrão.
+- Nome do modelo: `PascalCase` (ex: `AuthorizedNumber`, `Atestado`, `Conversation`)
+- Nome do campo: `camelCase` (ex: `phoneNumber`, `createdAt`)
+- Usar `@@map("nome_tabela")` para mapear para snake_case no banco.
+- Usar `@map("nome_coluna")` para campos individuais.
+
+Exemplo:
+```prisma
+model AuthorizedNumber {
+  id          BigInt   @id @default(autoincrement())
+  phoneNumber String   @unique @map("phone_number") @db.VarChar(20)
+  name        String   @db.VarChar(255)
+  role        String   @default("USER") @db.VarChar(10)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("authorized_numbers")
+}
+```
+
+## Migrations
+
+### Criação
+
+```bash
+npx prisma migrate dev --name descricao_em_snake_case
+```
+
+- Descrição em `snake_case`, descritiva da operação.
+- Exemplos: `create_authorized_numbers`, `create_conversations`, `create_atestados`.
+
+### Regras Gerais
+
+- Cada migration deve ter uma responsabilidade clara.
+- **Nunca** alterar uma migration já executada. Criar uma nova.
+- O Prisma controla o schema — nunca alterar o banco manualmente.
 
 ## Segurança SQL
 
-- **Nunca** concatenar strings em SQL. Usar parâmetros (`$1`, `$2` ou nomes).
-- Valores dinâmicos em `INSERT` de seed devem ser constantes literais.
-- Senhas em seeds devem ser hash BCrypt pré-computados.
+- **Nunca** concatenar strings em SQL.
+- Acessar dados sempre via Prisma Client (queries parametrizadas automaticamente).
+- SQL puro somente em migrations `prisma/migrations/`, com valores literais.
+- Seeds devem usar Prisma Client, não SQL direto.
 
 ## Índices
 
-- Criar índices para colunas usadas em `WHERE`, `JOIN` e foreign keys.
-- Naming de índice: `idx_{tabela}_{coluna}` ou `ux_{tabela}_{coluna}` para unique.
-- Exemplos:
-  ```sql
-  CREATE UNIQUE INDEX ux_users_email_lower ON users (lower(email));
-  CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens (user_id);
-  ```
-
-## Foreign Keys
-
-- Nomear explicitamente: `fk_{tabela_origem}_{tabela_destino}`.
+- Definir índices no `schema.prisma` usando `@@index` ou `@@unique`.
+- Naming: Prisma gera nomes automaticamente, mas pode-se customizar.
+- Criar índices para campos usados em buscas frequentes.
 - Exemplo:
-  ```sql
-  CONSTRAINT fk_refresh_tokens_users FOREIGN KEY (user_id) REFERENCES users(id)
+  ```prisma
+  @@index([phoneNumber], map: "idx_atestados_phone")
+  @@index([timestamp], map: "idx_atestados_timestamp")
   ```
 
-## Regras Gerais
+## Seed (`prisma/seed.ts`)
 
-- Cada migration deve ser atômica — uma responsabilidade por arquivo.
-- Nunca alterar uma migration já executada. Criar uma nova.
-- O Hibernate está configurado com `ddl-auto: validate` — toda mudança de schema passa por migration.
+- Seed script em TypeScript.
+- Configurar no `package.json`:
+  ```json
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+  ```
+- Usar `upsert` para idempotência.
+- Inserir dados iniciais: números admin e usuários de teste.

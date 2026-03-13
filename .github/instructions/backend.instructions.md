@@ -1,82 +1,71 @@
 ---
-applyTo: "api/src/**/*.java"
-description: "Use when editing Java backend code. Covers layered architecture rules, entity conventions, service patterns, security, and common violations like logic in controllers or exposed entities."
+applyTo: "api/src/**/*.ts"
+description: "Use when editing Node.js/TypeScript backend code. Covers layered architecture rules, service patterns, validation, security, and common violations like logic in handlers or missing validation."
 ---
-# Regras para Código Java — Backend
+# Regras para Código TypeScript — Backend
 
 ## Arquitetura de Camadas
 
-Respeitar rigorosamente: **Controller → Service → Repository → Entity**.
+Respeitar rigorosamente: **Webhook Handler → Service → Prisma → Validator (Zod)**.
 
-### Controller
+### Handler (Webhook Routes)
 
-- Usar `@RequiredArgsConstructor` para injeção via construtor.
-- Usar `@Valid` em todo request body.
-- Retornar `ResponseEntity` com status HTTP correto.
-- **Nunca** conter lógica de negócio — apenas receber, validar e delegar.
-- Endpoints paginados devem impor limites de `size` (máximo 50) e ordenação whitelistada.
-- Autorização real via `@PreAuthorize` — frontend não define permissão.
+- Apenas recebe, extrai dados do payload e delega para Services.
+- **Nunca** conter lógica de negócio.
+- Sempre responder `200` ao webhook da Meta rapidamente.
+- Verificação de assinatura deve ocorrer como middleware, antes do handler.
 
 ### Service
 
-- Usar `@Transactional` em operações de escrita.
-- Lançar exceções de negócio específicas (`BusinessException`, `ResourceNotFoundException`).
-- Converter Entity → DTO aqui, nunca expor Entity na resposta HTTP.
-- Normalizar e-mail para lowercase antes de persistir ou consultar.
-- Regras temporais devem usar timezone configurado (`America/Sao_Paulo`), nunca `ZoneId.systemDefault()`.
+- Um service por domínio: `conversation`, `atestado`, `export`, `whatsapp`, `auth`.
+- Contém toda a lógica de negócio e orquestração.
+- Acesso a dados exclusivamente via Prisma Client.
+- Validação de entrada via schemas Zod.
+- E-mail normalizado para lowercase antes de persistir ou consultar.
+- Regras temporais devem usar timezone configurado (`America/Sao_Paulo`), nunca default do SO.
 
-### Repository
+### Validator (Zod)
 
-- Interface que estende `JpaRepository`.
-- Preferir query methods do Spring Data.
-- Se usar `@Query`, parametrizar corretamente (`:param` ou `?1`).
-- **Nunca** concatenar strings em queries nativas.
+- Schemas Zod são puros — sem acesso a banco ou serviços.
+- Mensagens de erro em português.
+- Um arquivo de validator por domínio ou grupo de validações.
 
-### Entity
+### Types
 
-- **Nunca** usar Lombok `@Data` em entidades JPA.
-- Usar `@Getter`, `@Setter`, `@Builder`, `@NoArgsConstructor`, `@AllArgsConstructor`.
-- Entidades relevantes devem ter `createdAt`, `updatedAt` e `version`.
-- Usar `@Version` para concorrência otimista.
-- Preferir `Instant` para campos temporais.
-- Identificador padrão: `BIGSERIAL` (Long no Java).
+- Interfaces e tipos compartilhados ficam em `types/`.
+- Evitar `any` — usar tipos específicos ou `unknown`.
 
 ## Violações Comuns a Evitar
 
 | Violação | Correção |
 |----------|----------|
-| Lógica de negócio no Controller | Mover para Service |
-| Entity exposta como response | Criar DTO response |
-| Falta `@Transactional` em escrita | Adicionar no Service |
-| Falta `@Valid` no request body | Adicionar no Controller |
-| Concatenação SQL | Usar parâmetros |
-| `@Data` em Entity | Substituir por `@Getter`/`@Setter` |
-| Senha retornada em DTO | Excluir do response |
+| Lógica de negócio no Handler | Mover para Service |
+| Falta de validação Zod | Adicionar schema antes de processar |
+| Concatenação SQL manual | Usar Prisma Client |
+| `any` desnecessário | Definir tipo correto |
+| Token/secret hardcoded | Usar variável de ambiente via config |
+| Webhook sem verificação de assinatura | Adicionar middleware de verificação |
+| Número não verificado | Checar `authorized_numbers` antes de processar |
 
-## Pacotes
+## Estrutura de Diretórios
 
-Cada classe deve ficar no pacote correto conforme sua responsabilidade:
+Cada arquivo deve ficar no diretório correto conforme responsabilidade:
 
 ```
-com.starterkit.config/
-com.starterkit.controller/
-com.starterkit.dto.request/
-com.starterkit.dto.response/
-com.starterkit.entity/
-com.starterkit.enums/
-com.starterkit.exception/
-com.starterkit.filter/
-com.starterkit.repository/
-com.starterkit.service/
-com.starterkit.util/
+api/src/
+├── config/          → env, constantes, database client
+├── handlers/        → rotas Express, middleware de webhook
+├── services/        → lógica de negócio (um por domínio)
+├── validators/      → schemas Zod
+├── types/           → interfaces e tipos
+├── utils/           → funções utilitárias
+└── app.ts           → setup Express
 ```
 
 ## Nomenclatura
 
-- Classe: `PascalCase` (ex: `UserController`)
-- Método: `camelCase` (ex: `findByStoreIdAndStatus()`)
-- Constante: `UPPER_SNAKE_CASE` (ex: `MAX_PAGE_SIZE`)
-- Enum (valores): `UPPER_SNAKE_CASE` (ex: `EM_PREPARO`, `CANCELADO`)
-- DTO request: `PascalCase` + `Request` (ex: `CreateUserRequest`)
-- DTO response: `PascalCase` + `Response` (ex: `UserResponse`)
-- Endpoint REST: kebab-case, plural (ex: `/api/order-items`)
+- Arquivo: `camelCase` + sufixo descritivo (ex: `conversation.service.ts`, `webhook.handler.ts`)
+- Interface/Type: `PascalCase` (ex: `AtestadoData`, `ConversationStep`)
+- Variável/função: `camelCase` (ex: `handleMessage`, `sendTextMessage`)
+- Constante: `UPPER_SNAKE_CASE` (ex: `MAX_CONVERSATION_TIMEOUT`)
+- Enum valores: `UPPER_SNAKE_CASE` (ex: `UNIDADE_TRABALHO`, `CONFIRMACAO`)

@@ -10,35 +10,40 @@ Revise o código atual (ou os arquivos alterados recentemente) contra as regras 
 
 ### Arquitetura
 
-1. Cada classe está no pacote/diretório correto conforme a estrutura definida?
-2. Controllers delegam para Services sem lógica de negócio?
-3. Services contêm `@Transactional` em escrita e convertem Entity→DTO?
-4. Repositories usam query methods ou JPQL parametrizado?
-5. Entidades JPA seguem as convenções (sem `@Data`, com `@Version`, com `createdAt`/`updatedAt`)?
+1. Cada arquivo está no diretório correto conforme a estrutura definida (`handlers/`, `services/`, `validators/`, `types/`, `utils/`)?
+2. Handlers delegam para services sem lógica de negócio?
+3. Services contêm a lógica de negócio e acessam dados via Prisma Client?
+4. Validators são schemas Zod puros, sem dependência de banco?
+5. Tipos estão definidos em `types/` e são importados onde necessário?
 
 ### Segurança
 
-6. Alguma query SQL usa concatenação de string em vez de parâmetros?
-7. Senhas estão sendo logadas ou retornadas em algum DTO?
-8. Endpoints sensíveis estão protegidos com `@PreAuthorize`?
-9. `@Valid` está presente em todos os `@RequestBody`?
-10. CORS está configurado com `allowCredentials=true`?
-11. Refresh token está apenas em cookie HttpOnly (não em localStorage)?
-12. Há uso de `dangerouslySetInnerHTML` sem sanitização?
+6. Alguma operação de banco usa concatenação de string em vez de Prisma Client?
+7. Tokens/secrets estão hardcoded ou sendo logados?
+8. Webhook verifica `X-Hub-Signature-256` em todo POST recebido?
+9. Apenas números com `active = true` em `authorized_numbers` podem interagir?
+10. Comando `/exportar` é restrito à role `ADMIN`?
+11. Dados de entrada são validados com Zod antes de processar?
 
 ### Nomenclatura e Convenções
 
-13. Classes, métodos e variáveis seguem a convenção de naming documentada?
-14. DTOs seguem o padrão `*Request` / `*Response`?
-15. Migrations usam `V{n}__{descricao}.sql`?
-16. Frontend: chamadas HTTP passam por `services/`, não por componentes?
-17. Frontend: formulários usam `react-hook-form` + `zod`?
+12. Funções e variáveis usam `camelCase`?
+13. Tipos e interfaces usam `PascalCase`?
+14. Arquivos usam `kebab-case.ts`?
+15. Modelos Prisma usam `PascalCase` com `@@map` para snake_case?
+16. E-mail normalizado para lowercase antes de persistir?
 
 ### Temporal
 
-18. Colunas de data no banco usam `TIMESTAMPTZ`?
-19. Backend usa `Instant` para campos temporais?
-20. Alguma lógica depende de `ZoneId.systemDefault()`?
+17. Colunas de data no Prisma usam `DateTime` (mapeia para `TIMESTAMPTZ`)?
+18. Timezone operacional `America/Sao_Paulo` respeitado?
+19. Nenhuma dependência do timezone do sistema operacional?
+
+### Máquina de Estados
+
+20. Transições de estado seguem o fluxo documentado em `arquitetura.md`?
+21. Entradas inválidas resultam em mensagem amigável, não em erro silencioso?
+22. Estado da conversa é persistido corretamente em `conversations`?
 
 ## Formato da Revisão
 

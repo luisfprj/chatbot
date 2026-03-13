@@ -4,17 +4,10 @@
 .DS_Store
 Thumbs.db
 
-# === Backend ===
-api/.gradle/
-api/build/
-api/bin/
-api/out/
-api/*.iml
-
-# === Frontend ===
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+# === Backend (Node.js) ===
+api/node_modules/
+api/dist/
+api/.prisma/
 
 # === Docker ===
 postgres_data/
