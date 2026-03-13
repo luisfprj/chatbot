@@ -1,0 +1,26 @@
+# === Geral ===
+.env
+*.log
+.DS_Store
+Thumbs.db
+
+# === Backend ===
+api/.gradle/
+api/build/
+api/bin/
+api/out/
+api/*.iml
+
+# === Frontend ===
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# === Docker ===
+postgres_data/
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+*.swo

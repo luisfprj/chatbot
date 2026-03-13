@@ -1,0 +1,62 @@
+tecnologias e decisões:
+Nome do projeto base : starter-kit;
+
+o que não estiver especificado escolher a tecnologia que tiver mais aceitação de mercado profissional.
+
+offline first; frontend + api backend + banco de dados na mesma rede local;
+
+Frontend react + vite + TypeScript + Zustand;
+React Router;
+MUI (Material UI);
+
+
+Backend java 21 + Spring Boot 3.5.x + Swagger SpringDoc OpenAPI + lombok  + Gradle;
+Controller → Service → Repository
+SLF4J + Logback (padrão Spring)
+
+flyway: cria primeiro admin com login e senha (admin + senha123)
+
+nginx;
+vai servir o frontend buildado E fazer proxy reverso para o backend;
+Porta padrão: 80 (HTTP)
+
+Banco postgres;
+
+Login jwt + refresh token + Roles/Perfis(ADMIN, USER);
+
+docker;
+Docker Compose com todos os serviços (backend, frontend, postgres)
+Ambiente de dev vs produção — multi-stage build;
+
+Git unico repostiorio; 
+branchs develop + main; 
+local por enquanto;
+
+criar Documento de arquiteturae planos de desenvolvimento, separados por fase e atualizar evolução;
+
+backend fica em /api
+Frontend fica em /frontend
+documentos dosp rojeto ficam em /documentos
+seguir regras do desenvolvimento /regras 
+(regras são principios de desenvolvimento a serem seguidos, estrutura do projeto a ser seguida por exemplo após ter o padrão de arquitetura do projeto seguir os paths para cada responsabilidade. repostiorio guardar os repositorios, protejer queries de sql injection)
+
+plano inicial :
+
+CRUD de usuário
+Tela de login
+Dashboard vazio
+Tratamento global de erros
+Logging estruturado
+Paginação genérica
+Testes unitários/integração de exemplo
+JUnit 5 + Mockito para backend e Vitest/Jest para frontend
+Internacionalização (i18n) não necessaria no momento
+Tudo roda local — Docker Compose sobe frontend + backend + banco na mesma rede
+Zero dependência de internet em runtime — nada de CDNs, Google Fonts, APIs externas
+Todas as dependências são resolvidas no build — npm install e Gradle build baixam tudo antes do deploy
+Não precisa de Service Workers, Workbox, PWA — a app não precisa funcionar "sem servidor"
+Nginx serve tudo localmente — assets estáticos + proxy reverso para a API
+HTTP client — Axios
+coomits não precisam de padrão
+
+
